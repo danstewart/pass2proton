@@ -29,24 +29,30 @@ def find_files(dir: PosixPath):
 
     return files
 
-# TODO
 def get_password_data(file: PosixPath) -> dict:
     import subprocess
 
     # Convert file path to the pass key name
-    key = str(file.relative_to(password_store)).replace(".gpg", "")
+    file_key = str(file.relative_to(password_store)).replace(".gpg", "")
 
     # First line is password and additional lines are notes
-    output = subprocess.run(["pass", key], stdout=subprocess.PIPE)
+    output = subprocess.run(["pass", file_key], stdout=subprocess.PIPE)
     output = output.stdout.decode("utf-8").splitlines()
 
-    # TODO: Parse out URLs and usernames
+    # Parse metadata
+    password, *notes = output
+    parsed_notes = {}
+    for note in notes:
+        if ":" in note:
+            key, value = note.split(":", 1)
+            parsed_notes[key.strip()] = value.strip()
+
     return {
-        "key": key,
-        "url": "",
-        "username": "",
-        "password": output[0],
-        "notes": "\n".join(output[1:])
+        "key": file_key,
+        "url": parsed_notes.get("url") or parsed_notes.get("href") or "",
+        "username": parsed_notes.get("username") or parsed_notes.get("user") or parsed_notes.get("email") or "",
+        "password": password,
+        "notes": "\n".join(notes)
     }
 
 def main():
@@ -57,9 +63,8 @@ def main():
     writer.writerow(["Title", "URL", "Username", "Password", "Notes", "OTPAuth"])
 
     files = find_files(password_store)
-    for file in files[0:10]:  # TODO: Remove temp limit
+    for file in files:
         data = get_password_data(file)
-        print(data)
         writer.writerow([data["key"], data.get("url", ""), data.get("username", ""), data["password"], data.get("notes", ""), ""])
 
 
